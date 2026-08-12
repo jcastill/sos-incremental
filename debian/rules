@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+
+export PYBUILD_NAME=sos
+export PYBUILD_DESTDIR=debian/$(PYBUILD_NAME)
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_install:
+	# Move config file to the right location.
+	mkdir -p debian/sos/etc/sos
+	mv debian/sos/usr/config/sos.conf debian/sos/etc/sos/sos.conf
+	# Remove unnecessary unused dir.
+	rm -rf debian/sos/usr/config
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	python3 -m unittest -v $(shell find tests/unittests -name "*_tests.py" -not -path "*policy_tests.py")
+endif

@@ -1,0 +1,137 @@
+# This file is part of the sos project: https://github.com/sosreport/sos
+#
+# This copyrighted material is made available to anyone wishing to use,
+# modify, copy, or redistribute it subject to the terms and conditions of
+# version 2 of the GNU General Public License.
+#
+# See the LICENSE file in the source distribution for further information.
+
+import glob
+import os
+import re
+from sos.report.plugins import Plugin, PluginOpt, IndependentPlugin, CosPlugin
+
+
+class LogsBase(Plugin):
+
+    short_desc = 'System logs'
+
+    plugin_name = "logs"
+    profiles = ('system', 'hardware', 'storage')
+
+    def setup(self):
+        rsyslog = '/etc/rsyslog.conf'
+        confs = ['/etc/syslog.conf', rsyslog]
+        logs = []
+
+        if self.path_exists(rsyslog):
+            with open(self.path_join(rsyslog), 'r', encoding='UTF-8') as conf:
+                content = conf.read()
+                for match in re.findall(
+                    pattern=r"(include\((\s*)?file=([\"'`]([^'\"]*)[\"'`]))",
+                    string=content,
+                    flags=re.I | re.M
+                ):
+                    try:
+                        _ent = match[3]
+                        # best-effort to get env var provided files
+                        # this WILL break on anything other than basic echos
+                        # as shown in the rsyslog documentation
+                        if _ent.startswith('echo '):
+                            if envc := os.getenv(_ent.split()[1].strip(' $`')):
+                                confs += glob.glob(envc)
+                        else:
+                            confs += glob.glob(_ent)
+                    except Exception as err:
+                        self._log_debug(f"Error parsing include(): {err}")
+                for line in content.splitlines():
+                    if line.startswith('$IncludeConfig'):
+                        confs += glob.glob(line.split()[1])
+
+        for conf in confs:
+            if not self.path_exists(self.path_join(conf)):
+                continue
+            config = self.path_join(conf)
+            logs += self.do_regex_find_all(r"^\S+\s+(-?\/.*$)\s+", config)
+
+        for i in logs:
+            if i.startswith("-"):
+                i = i[1:]
+            if self.path_isfile(i):
+                self.add_copy_spec(i)
+
+        self.add_copy_spec([
+            "/var/log/auth.log*",
+            "/var/log/boot.log",
+            "/var/log/dist-upgrade",
+            "/var/log/installer",
+            "/var/log/kern.log*",
+            "/var/log/messages*",
+            "/var/log/secure*",
+            "/var/log/syslog*",
+            "/var/log/udev",
+            "/etc/rsyslog.conf",
+            "/etc/rsyslog.d",
+            "/etc/syslog.conf",
+        ])
+
+        self.add_cmd_output("journalctl --disk-usage")
+        self.add_dir_listing('/var/log', recursive=True, extra_opts='s')
+
+        # collect journal logs if:
+        # - there is some data present, either persistent or runtime only
+        # - systemd-journald service exists
+        # otherwise fallback to collecting few well known logfiles directly
+        journal = any(self.path_exists(self.path_join(p, "log/journal/"))
+                      for p in ["/var", "/run"])
+        if journal and self.is_service("systemd-journald"):
+            self.add_journal(tags=['journal_full', 'journal_all'],
+                             priority=100)
+            self.add_journal(boot="this", tags='journal_since_boot')
+            self.add_journal(boot="last", tags='journal_last_boot')
+            if self.get_option("all_logs"):
+                self.add_copy_spec([
+                    "/var/log/journal/*",
+                    "/run/log/journal/*"
+                ])
+
+        self.add_cmd_output("rsyslogd -N3 -o /dev/stdout",)
+
+    def postproc(self):
+        regex = r"(ActionLibdbiPassword |pwd=)(.*)"
+        repl = r"\1[********]"
+        self.do_path_regex_sub(r"/etc/rsyslog*", regex, repl)
+        self.do_cmd_output_sub("rsyslogd", regex, repl)
+
+
+class IndependentLogs(LogsBase, IndependentPlugin):
+    """
+    This plugin will collect logs traditionally considered to be "system" logs,
+    meaning those such as /var/log/messages, rsyslog, and journals that are
+    not limited to unit-specific entries.
+
+    Note that the --since option will apply to journal collections by this
+    plugin as well as the typical application to log files. Most users can
+    expect typical journal collections to include the "full" journal, as well
+    as journals limited to this boot and the previous boot.
+    """
+
+    plugin_name = "logs"
+    profiles = ('system', 'hardware', 'storage')
+
+
+class CosLogs(LogsBase, CosPlugin):
+    option_list = [
+        PluginOpt(name="log-days", default=3,
+                  desc="the number of days logs to collect")
+    ]
+
+    def setup(self):
+        super().setup()
+        if self.get_option("all_logs"):
+            self.add_cmd_output("journalctl -o export")
+        else:
+            days = self.get_option("log-days", 3)
+            self.add_journal(since=f"-{days}days")
+
+# vim: set et ts=4 sw=4 :

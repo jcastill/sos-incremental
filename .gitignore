@@ -1,0 +1,34 @@
+*~
+*.class
+*swp*
+*.pyc
+*.sw*
+*.DS_Store
+tags
+buildjar/
+gpgkeys/rhsupport.*
+dist-build/*
+cover/
+.coverage
+*.mo
+sos.conf.5.gz
+sosreport.1.gz
+venv
+MANIFEST
+build/
+dist/
+*sos.egg*
+docs/_build
+
+# Pycharm
+.idea/
+
+# debian files
+debian/sosreport/*
+debian/sos/*
+debian/files
+debian/.debhelper
+debian/debhelper-build-stamp
+
+# tox
+.tox

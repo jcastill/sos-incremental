@@ -1,0 +1,6 @@
+pycodestyle>=2.4.0
+coverage>=4.0.3
+pexpect>=4.0.0
+pyyaml
+packaging
+

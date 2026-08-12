@@ -1,0 +1,107 @@
+# Copyright (C) 2013 Red Hat, Inc., Eoghan Lynn <eglynn@redhat.com>
+# Copyright (C) 2012 Rackspace US, Inc.
+#               2012 Justin Shepherd <jshepher@rackspace.com>
+# Copyright (C) 2009 Red Hat, Inc.
+#               2009 Joey Boggs <jboggs@redhat.com>
+
+# This file is part of the sos project: https://github.com/sosreport/sos
+#
+# This copyrighted material is made available to anyone wishing to use,
+# modify, copy, or redistribute it subject to the terms and conditions of
+# version 2 of the GNU General Public License.
+#
+# See the LICENSE file in the source distribution for further information.
+
+from sos.report.plugins import Plugin, RedHatPlugin, DebianPlugin, UbuntuPlugin
+
+
+class OpenStackCeilometer(Plugin):
+
+    short_desc = 'Openstack Ceilometer'
+    plugin_name = "openstack_ceilometer"
+    profiles = ('openstack', 'openstack_controller', 'openstack_compute')
+    var_puppet_gen = "/var/lib/config-data/puppet-generated/ceilometer"
+
+    def setup(self):
+        # Ceilometer
+        if self.get_option("all_logs"):
+            self.add_copy_spec([
+                "/var/log/ceilometer/*",
+            ])
+        else:
+            self.add_copy_spec([
+                "/var/log/ceilometer/*.log",
+            ])
+        self.add_copy_spec([
+            "/etc/ceilometer/*",
+            self.var_puppet_gen + "/etc/ceilometer/*"
+        ])
+
+        self.add_file_tags({
+            "/var/log/ceilometer/central.log":
+                "ceilometer_central_log"
+        })
+
+    def apply_regex_sub(self, regexp, subst):
+        """ Apply regex substitution """
+        self.do_path_regex_sub("/etc/ceilometer/*", regexp, subst)
+        self.do_path_regex_sub(
+            self.var_puppet_gen + "/etc/ceilometer/*",
+            regexp, subst
+        )
+
+    def postproc(self):
+        protect_keys = [
+            ".*_key",
+            ".*_pass(wd|word)?",
+            ".*_secret",
+            "password",
+        ]
+        connection_keys = [
+            ".*_urls?",
+            "connection",
+        ]
+
+        join_con_keys = "|".join(connection_keys)
+
+        self.apply_regex_sub(
+            fr"(^\s*({'|'.join(protect_keys)})\s*=\s*)(.*)",
+            r"\1*********"
+        )
+        self.apply_regex_sub(
+            fr"(^\s*({join_con_keys})\s*=\s*(.*)://(\w*):)(.*)(@(.*))",
+            r"\1*********\6"
+        )
+
+
+class DebianCeilometer(OpenStackCeilometer, DebianPlugin,
+                       UbuntuPlugin):
+
+    packages = (
+        'ceilometer-api',
+        'ceilometer-agent-central',
+        'ceilometer-agent-compute',
+        'ceilometer-agent-notification',
+        'ceilometer-collector',
+        'ceilometer-common',
+        'python-ceilometer',
+        'python3-ceilometer',
+    )
+
+
+class RedHatCeilometer(OpenStackCeilometer, RedHatPlugin):
+
+    packages = ('openstack-selinux',)
+
+    def setup(self):
+        super().setup()
+        if self.get_option("all_logs"):
+            self.add_copy_spec([
+                "/var/log/containers/ceilometer/*",
+            ])
+        else:
+            self.add_copy_spec([
+                "/var/log/containers/ceilometer/*.log",
+            ])
+
+# vim: set et ts=4 sw=4 :

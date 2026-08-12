@@ -1,0 +1,10 @@
+Tests:
+ simple.sh,
+Depends:
+ iproute2,
+ kmod,
+ lshw,
+ sos,
+Restrictions:
+ allow-stderr,
+ needs-root,
