@@ -145,23 +145,18 @@ class SoSCompare(SoSComponent):
         if not files:
             self.ui_log.info("No baseline snapshots found.")
             return
-        headers = ['Snapshot', 'Size', 'Hostname', 'Kernel',
-                   'Arch', 'Type']
+        headers = ['Snapshot', 'Size', 'Location', 'Type']
         rows = []
         for f in files:
             size = os.path.getsize(f)
             fname = os.path.basename(f)
             data = self._read_json(f)
+            ctype = ''
             if data:
                 info = self._get_snapshot_info(data)
-                rows.append([
-                    fname, f'{size:,} B',
-                    info['hostname'], info['kernel'],
-                    info['arch'], info['collection_type'],
-                ])
-            else:
-                rows.append([fname, f'{size:,} B', '', '', '', ''])
-        self.ui_log.info(format_table(headers, rows, max_col=42))
+                ctype = info['collection_type']
+            rows.append([fname, f'{size:,} B', f, ctype])
+        self.ui_log.info(format_table(headers, rows, max_col=52))
 
     def _do_list(self):
         self._list_available(name=self.opts.name)
