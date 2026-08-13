@@ -98,22 +98,22 @@ The archive should be smaller because unchanged files are skipped. Check the sos
 #### 4. List snapshots
 
 ```bash
-sudo sos compare list
-sudo sos compare list --name production
+sudo ./bin/sos compare list
+sudo ./bin/sos compare list --name production
 ```
 
 #### 5. Diff two snapshots
 
 ```bash
 # Use the date portions from the snapshot filenames
-sudo sos compare diff 2026-08-01_10-00-00 2026-08-02_10-00-00
+sudo ./bin/sos compare diff 2026-08-01_10-00-00 2026-08-02_10-00-00
 
 # JSON output
-sudo sos compare diff 2026-08-01_10-00-00 2026-08-02_10-00-00 --output-format json
+sudo ./bin/sos compare diff 2026-08-01_10-00-00 2026-08-02_10-00-00 --output-format json
 
 # Filter by profile
-sudo sos compare diff snap1 snap2 --profile kernel
+sudo ./bin/sos compare diff snap1 snap2 --profile kernel
 
 # Filter by path
-sudo sos compare diff snap1 snap2 -i '/etc/*' -e '/etc/alternatives/*'
+sudo ./bin/sos compare diff snap1 snap2 -i '/etc/*' -e '/etc/alternatives/*'
 ```
