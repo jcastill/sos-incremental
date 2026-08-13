@@ -156,7 +156,7 @@ class SoSCompare(SoSComponent):
                 info = self._get_snapshot_info(data)
                 ctype = info['collection_type']
             rows.append([fname, f'{size:,} B', f, ctype])
-        self.ui_log.info(format_table(headers, rows, max_col=52))
+        self.ui_log.info(format_table(headers, rows))
 
     def _do_list(self):
         self._list_available(name=self.opts.name)

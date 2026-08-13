@@ -224,10 +224,25 @@ def format_diff_text(diff_result):
     files = diff_result['files']
     summary = diff_result['summary']
 
-    field_w = 22
-    col_w = 30
-    widths = [field_w] + [col_w] * len(labels)
-    short_labels = [_shorten_label(lb, col_w - 2) for lb in labels]
+    n = len(labels)
+    max_col = 50
+
+    short_labels = [_shorten_label(lb, max_col - 2) for lb in labels]
+
+    field_w = len('Field') + 2
+    for entry in files:
+        for field in entry['fields']:
+            field_w = max(field_w, len(f'  {field}') + 2)
+
+    col_ws = [len(sl) + 2 for sl in short_labels]
+    for entry in files:
+        for vals in entry['fields'].values():
+            for i, v in enumerate(vals):
+                cell = str(v) if v is not None else ABSENT
+                col_ws[i] = max(col_ws[i], len(cell) + 2)
+    col_ws = [min(w, max_col) for w in col_ws]
+
+    widths = [field_w] + col_ws
 
     top = _hline(widths, '┌', '┬', '┐')
     mid = _hline(widths, '├', '┼', '┤')
@@ -248,10 +263,10 @@ def format_diff_text(diff_result):
             lines.append(_span_row(entry['path'], widths))
             for field, vals in entry['fields'].items():
                 cells = [f'  {field}']
-                for v in vals:
+                for j, v in enumerate(vals):
                     cell = str(v) if v is not None else ABSENT
-                    if len(cell) > col_w - 2:
-                        cell = cell[:col_w - 4] + '..'
+                    if len(cell) > col_ws[j] - 2:
+                        cell = cell[:col_ws[j] - 4] + '..'
                     cells.append(cell)
                 lines.append(_data_row(cells, widths))
 
