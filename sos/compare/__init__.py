@@ -10,7 +10,8 @@
 
 from sos.component import SoSComponent
 from sos.report.snapshot.comparison import (compare_snapshots,
-                                            format_diff_text)
+                                            format_diff_text,
+                                            format_table)
 
 import glob
 import json
@@ -131,7 +132,7 @@ class SoSCompare(SoSComponent):
         return None
 
     def _list_available(self, name=''):
-        """Print available baselines, optionally filtered by name"""
+        """Print available baselines in a formatted table"""
         baseline_dir = self.opts.baseline_dir
         if name:
             pattern = os.path.join(baseline_dir,
@@ -144,25 +145,23 @@ class SoSCompare(SoSComponent):
         if not files:
             self.ui_log.info("No baseline snapshots found.")
             return
+        headers = ['Snapshot', 'Size', 'Hostname', 'Kernel',
+                   'Arch', 'Type']
+        rows = []
         for f in files:
             size = os.path.getsize(f)
             fname = os.path.basename(f)
             data = self._read_json(f)
             if data:
                 info = self._get_snapshot_info(data)
-                parts = [fname, f"({size:,} bytes)"]
-                if info['hostname']:
-                    parts.append(info['hostname'])
-                if info['kernel']:
-                    parts.append(info['kernel'])
-                if info['arch']:
-                    parts.append(info['arch'])
-                if info['collection_type']:
-                    parts.append(f"[{info['collection_type']}]")
-                self.ui_log.info(f"    {'  '.join(parts)}")
+                rows.append([
+                    fname, f'{size:,} B',
+                    info['hostname'], info['kernel'],
+                    info['arch'], info['collection_type'],
+                ])
             else:
-                self.ui_log.info(
-                    f"    {fname}    ({size:,} bytes)")
+                rows.append([fname, f'{size:,} B', '', '', '', ''])
+        self.ui_log.info(format_table(headers, rows, max_col=42))
 
     def _do_list(self):
         self._list_available(name=self.opts.name)

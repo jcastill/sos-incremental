@@ -58,6 +58,55 @@ COMPARE_FIELDS = ('file_type', 'link_target', 'mode', 'uid',
 ABSENT = '—'
 
 
+def _hline(widths, left, mid, right):
+    return left + mid.join('─' * w for w in widths) + right
+
+
+def _data_row(cells, widths):
+    parts = []
+    for cell, w in zip(cells, widths):
+        parts.append(f' {cell:<{w - 1}}')
+    return '│' + '│'.join(parts) + '│'
+
+
+def _span_row(text, widths):
+    inner = sum(widths) + len(widths) - 1
+    s = str(text)
+    max_len = inner - 2
+    if len(s) > max_len:
+        s = s[:max_len - 2] + '..'
+    return '│' + f' {s:<{inner - 1}}' + '│'
+
+
+def format_table(headers, rows, max_col=0):
+    """Format rows as a box-drawn table with auto-sized columns."""
+    n = len(headers)
+    widths = [len(h) + 2 for h in headers]
+    for row in rows:
+        for i in range(min(n, len(row))):
+            widths[i] = max(widths[i], len(str(row[i])) + 2)
+    if max_col:
+        widths = [min(w, max_col) for w in widths]
+
+    def _trunc(text, w):
+        s = str(text)
+        if len(s) > w - 2:
+            return s[:w - 4] + '..'
+        return s
+
+    lines = []
+    lines.append(_hline(widths, '┌', '┬', '┐'))
+    lines.append(_data_row(
+        [_trunc(h, w) for h, w in zip(headers, widths)], widths))
+    lines.append(_hline(widths, '├', '┼', '┤'))
+    for row in rows:
+        cells = [_trunc(row[i] if i < len(row) else '', widths[i])
+                 for i in range(n)]
+        lines.append(_data_row(cells, widths))
+    lines.append(_hline(widths, '└', '┴', '┘'))
+    return '\n'.join(lines)
+
+
 def compare_snapshots(*snapshot_data, labels=None, profiles=None,
                       include=None, exclude=None):
     """Compare N snapshot manifests side by side.
@@ -170,56 +219,48 @@ def _shorten_label(label, max_len):
 
 
 def format_diff_text(diff_result):
-    """Format N-snapshot comparison as aligned terminal output.
-
-    Uses the same left-aligned, space-padded column style as
-    sos report --list-plugins and --list-profiles, with light
-    separator lines for readability.
-    """
+    """Format N-snapshot comparison as a box-drawn terminal table."""
     labels = diff_result['labels']
     files = diff_result['files']
     summary = diff_result['summary']
 
     field_w = 22
     col_w = 30
-    short_labels = [_shorten_label(lb, col_w) for lb in labels]
-    total_w = field_w + (col_w + 2) * len(labels)
-    sep = '-' * total_w
+    widths = [field_w] + [col_w] * len(labels)
+    short_labels = [_shorten_label(lb, col_w - 2) for lb in labels]
+
+    top = _hline(widths, '┌', '┬', '┐')
+    mid = _hline(widths, '├', '┼', '┤')
+    bottom = _hline(widths, '└', '┴', '┘')
 
     lines = []
-    lines.append("")
-    lines.append(sep)
-
-    header = f" {'Field':<{field_w - 1}}"
-    for sl in short_labels:
-        header += f"  {sl:<{col_w}}"
-    lines.append(header)
-
-    lines.append(sep)
+    lines.append('')
+    lines.append(top)
+    lines.append(_data_row(['Field'] + short_labels, widths))
+    lines.append(mid)
 
     if not files:
-        lines.append("")
-        lines.append(f" {'(no differences)'}")
+        lines.append(_span_row('(no differences)', widths))
     else:
-        for entry in files:
-            lines.append("")
-            lines.append(f" {entry['path']}")
+        for i, entry in enumerate(files):
+            if i > 0:
+                lines.append(mid)
+            lines.append(_span_row(entry['path'], widths))
             for field, vals in entry['fields'].items():
-                row = f"   {field:<{field_w - 3}}"
+                cells = [f'  {field}']
                 for v in vals:
                     cell = str(v) if v is not None else ABSENT
-                    if len(cell) > col_w:
-                        cell = cell[:col_w - 2] + '..'
-                    row += f"  {cell:<{col_w}}"
-                lines.append(row)
+                    if len(cell) > col_w - 2:
+                        cell = cell[:col_w - 4] + '..'
+                    cells.append(cell)
+                lines.append(_data_row(cells, widths))
 
-    lines.append("")
-    lines.append(sep)
+    lines.append(bottom)
     lines.append(
-        f" {summary['changed_files']} changed, "
-        f"{summary['unchanged_files']} unchanged, "
-        f"{summary['total_files']} total"
+        f' {summary["changed_files"]} changed, '
+        f'{summary["unchanged_files"]} unchanged, '
+        f'{summary["total_files"]} total'
     )
-    lines.append("")
+    lines.append('')
 
     return '\n'.join(lines)
