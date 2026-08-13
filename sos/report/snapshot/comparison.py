@@ -58,8 +58,8 @@ COMPARE_FIELDS = ('file_type', 'link_target', 'mode', 'uid',
 ABSENT = '—'
 
 
-def _hline(widths, left, mid, right):
-    return left + mid.join('─' * w for w in widths) + right
+def _hline(widths, left, mid, right, fill='─'):
+    return left + mid.join(fill * w for w in widths) + right
 
 
 def _data_row(cells, widths):
@@ -246,21 +246,22 @@ def format_diff_text(diff_result):
 
     top = _hline(widths, '┌', '┬', '┐')
     mid = _hline(widths, '├', '┼', '┤')
+    dbl = _hline(widths, '╞', '╪', '╡', fill='═')
     bottom = _hline(widths, '└', '┴', '┘')
 
     lines = []
     lines.append('')
     lines.append(top)
     lines.append(_data_row(['Field'] + short_labels, widths))
-    lines.append(mid)
 
     if not files:
+        lines.append(mid)
         lines.append(_span_row('(no differences)', widths))
     else:
-        for i, entry in enumerate(files):
-            if i > 0:
-                lines.append(mid)
-            lines.append(_span_row(entry['path'], widths))
+        for entry in files:
+            lines.append(dbl)
+            lines.append(_span_row(f'>> {entry["path"]}', widths))
+            lines.append(mid)
             for field, vals in entry['fields'].items():
                 cells = [f'  {field}']
                 for j, v in enumerate(vals):
